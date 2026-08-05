@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Lavanderia</title>
+<meta name="theme-color" content="#1f6f6b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lavanderia">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#f4f5f3; --card:#ffffff; --text:#191c1b; --muted:#5d6664;
+  --line:#dfe3e0; --accent:#1f6f6b; --accent-soft:#e3f0ee;
+  --danger:#b32828; --danger-soft:#fdeaea;
+  --radius:14px; --safe-b:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#111413; --card:#1b1f1e; --text:#eef1f0; --muted:#9aa5a2;
+    --line:#2c3231; --accent:#5fbfb6; --accent-soft:#1d302f;
+    --danger:#ff8a80; --danger-soft:#3a1f1f;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--text); font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding-top:env(safe-area-inset-top,0px);
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+
+/* header */
+header{
+  position:sticky;top:0;z-index:20;background:var(--bg);
+  padding:10px 16px 8px;border-bottom:1px solid var(--line);
+}
+.hrow{display:flex;align-items:center;gap:10px;min-height:44px}
+.htitle{font-size:22px;font-weight:700;letter-spacing:-.02em;flex:1;margin:0}
+.iconbtn{
+  width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:var(--text);
+}
+.iconbtn:active{background:var(--line)}
+.iconbtn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* search + filtri */
+.search{position:relative;margin-top:8px}
+.search input[type=text]{
+  width:100%;height:48px;padding:0 14px 0 44px;border-radius:12px;
+  border:1px solid var(--line);background:var(--card);
+}
+.search svg{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;
+  fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round
+}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--muted);font-size:14px;white-space:nowrap
+}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.chip.warn.on{background:var(--danger);border-color:var(--danger)}
+
+/* liste */
+main{padding:12px 16px calc(96px + var(--safe-b))}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;text-align:left;display:block;width:100%;padding:0
+}
+.card:active{transform:scale(.985)}
+.thumb{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:var(--line)}
+.thumb.ph{display:grid;place-items:center}
+.thumb.ph svg{width:34px;height:34px;fill:none;stroke:var(--muted);stroke-width:1.5}
+.cbody{padding:9px 10px 11px}
+.cname{font-weight:600;font-size:15px;line-height:1.25;margin:0 0 6px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:11px;font-weight:600;padding:3px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.tag.red{background:var(--danger-soft);color:var(--danger)}
+
+/* stato vuoto */
+.empty{text-align:center;color:var(--muted);padding:56px 20px}
+.empty svg{width:56px;height:56px;fill:none;stroke:currentColor;stroke-width:1.2;margin-bottom:14px}
+.empty p{margin:6px 0}
+
+/* avvisi */
+.notice{
+  display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--line);
+  border-left:4px solid var(--accent);border-radius:10px;padding:11px 12px;margin-bottom:12px;font-size:14px;color:var(--muted)
+}
+.notice b{color:var(--text)}
+.notice button{color:var(--accent);font-weight:600;padding:4px 0}
+.notice .x{margin-left:auto;color:var(--muted);font-size:20px;line-height:1;padding:0 4px}
+
+/* fab */
+.fab{
+  position:fixed;left:16px;right:16px;bottom:calc(16px + var(--safe-b));z-index:30;
+  height:54px;border-radius:16px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 6px 20px rgba(0,0,0,.18)
+}
+.fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+
+/* schermate a pagina piena */
+.screen{
+  position:fixed;inset:0;z-index:40;background:var(--bg);overflow-y:auto;
+  padding-top:env(safe-area-inset-top,0px);-webkit-overflow-scrolling:touch
+}
+.screen[hidden]{display:none}
+.sbar{
+  position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:6px;padding:6px 10px;z-index:5
+}
+.sbar h2{font-size:17px;font-weight:700;margin:0;flex:1;text-align:center}
+.sbar .txtbtn{color:var(--accent);font-weight:600;padding:10px 8px;min-width:64px}
+.sbar .txtbtn.l{text-align:left}
+.sbar .txtbtn.r{text-align:right}
+.sbody{padding:16px 16px calc(28px + var(--safe-b))}
+
+/* form */
+label.field{display:block;margin-bottom:16px}
+.lbl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+input[type=text],select,textarea{
+  width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:13px 14px;min-height:48px
+}
+textarea{resize:vertical;min-height:88px}
+select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235d6664' stroke-width='2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;background-size:20px;padding-right:42px}
+.photo-btn{
+  width:100%;aspect-ratio:4/3;border:2px dashed var(--line);border-radius:var(--radius);
+  background:var(--card);display:grid;place-items:center;color:var(--muted);gap:8px;overflow:hidden;position:relative
+}
+.photo-btn img{width:100%;height:100%;object-fit:cover}
+.photo-btn .ptxt{display:grid;place-items:center;gap:8px;font-weight:600}
+.photo-btn svg{width:38px;height:38px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.photo-actions{display:flex;gap:10px;margin:10px 0 18px}
+.photo-actions button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:11px;font-size:14px;font-weight:600;min-height:44px}
+.hint{font-size:13px;color:var(--muted);margin:-8px 0 16px}
+.hint.red{color:var(--danger);font-weight:600}
+.btn{width:100%;height:52px;border-radius:14px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;margin-top:4px}
+.btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:var(--danger-soft);color:var(--danger);margin-top:12px}
+
+/* dettaglio */
+.detail-photo{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:var(--radius);background:var(--line);display:block}
+.detail-photo.ph{display:grid;place-items:center}
+.detail-photo.ph svg{width:56px;height:56px;fill:none;stroke:var(--muted);stroke-width:1.2}
+.dname{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:16px 0 10px}
+.banner{display:flex;gap:10px;align-items:center;background:var(--danger-soft);color:var(--danger);
+  border-radius:12px;padding:12px 14px;font-weight:600;margin-bottom:14px}
+.banner svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.row{display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--line)}
+.row .k{color:var(--muted);font-size:14px;flex:0 0 auto}
+.row .v{text-align:right;font-weight:600}
+.note{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:14px}
+
+/* impostazioni */
+.sect{margin-bottom:26px}
+.sect h3{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px}
+.list{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.li{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.li:last-child{border-bottom:none}
+.li span{flex:1}
+.li .del{color:var(--danger);font-size:14px;font-weight:600;padding:6px 4px}
+.addrow{display:flex;gap:8px;margin-top:10px}
+.addrow input{flex:1}
+.addrow button{flex:0 0 auto;padding:0 18px;border-radius:12px;background:var(--accent);color:#fff;font-weight:600;min-height:48px}
+.meta{font-size:13px;color:var(--muted);margin-top:10px}
+
+/* toast */
+#toast{
+  position:fixed;left:50%;bottom:calc(84px + var(--safe-b));transform:translateX(-50%) translateY(12px);
+  background:#191c1b;color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;
+  z-index:100;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90vw;text-align:center
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-color-scheme:dark){#toast{background:#eef1f0;color:#111413}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <h1 class="htitle">Lavanderia</h1>
+    <button class="iconbtn" id="btn-settings" aria-label="Impostazioni">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+  <div class="search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input type="text" id="q" placeholder="Cerca un capo" autocomplete="off" enterkeyhint="search">
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<main>
+  <div id="notices"></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>
+    <svg viewBox="0 0 24 24"><path d="M8 3l-4 3v14h16V6l-4-3-2 2h-4z"/><path d="M9 3a3 3 0 0 0 6 0"/></svg>
+    <p id="empty-title"><b>Nessun capo registrato</b></p>
+    <p id="empty-sub">Tocca "Nuovo capo" e scatta la prima foto.</p>
+  </div>
+</main>
+
+<button class="fab" id="btn-new">
+  <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+  Nuovo capo
+</button>
+
+<!-- SCHEDA / MODIFICA -->
+<section class="screen" id="screen-edit" hidden>
+  <div class="sbar">
+    <button class="txtbtn l" id="edit-cancel">Annulla</button>
+    <h2 id="edit-title">Nuovo capo</h2>
+    <button class="txtbtn r" id="edit-save">Salva</button>
+  </div>
+  <div class="sbody">
+    <button class="photo-btn" id="photo-btn">
+      <div class="ptxt" id="photo-placeholder">
+        <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-2h6.6l1.2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+        Scatta foto
+      </div>
+      <img id="photo-preview" hidden alt="">
+    </button>
+    <div class="photo-actions" id="photo-actions" hidden>
+      <button type="button" id="photo-change">Cambia foto</button>
+      <button type="button" id="photo-remove">Rimuovi</button>
+    </div>
+    <input type="file" id="file-camera" accept="image/*" capture="environment" hidden>
+
+    <label class="field">
+      <span class="lbl">Nome del capo</span>
+      <input type="text" id="f-nome" placeholder="Es. Maglione rosso Zara" enterkeyhint="done">
+    </label>
+
+    <label class="field">
+      <span class="lbl">Perde colore</span>
+      <select id="f-perde">
+        <option value="no">No</option>
+        <option value="si">Si</option>
+      </select>
+    </label>
+    <p class="hint red" id="hint-perde" hidden>Da lavare separato dagli altri capi.</p>
+
+    <label class="field">
+      <span class="lbl">Tipo di lavaggio</span>
+      <select id="f-lavaggio"></select>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Note</span>
+      <textarea id="f-note" placeholder="Es. lavare al rovescio, niente ammorbidente"></textarea>
+    </label>
+
+    <button class="btn danger" id="edit-delete" hidden>Elimina capo</button>
+  </div>
+</section>
+
+<!-- DETTAGLIO -->
+<section class="screen" id="screen-detail" hidden>
+  <div class="sbar">
+    <button class="txtbtn l" id="detail-back">Indietro</button>
+    <h2>Scheda</h2>
+    <button class="txtbtn r" id="detail-edit">Modifica</button>
+  </div>
+  <div class="sbody" id="detail-body"></div>
+</section>
+
+<!-- IMPOSTAZIONI -->
+<section class="screen" id="screen-settings" hidden>
+  <div class="sbar">
+    <button class="txtbtn l" id="settings-back">Indietro</button>
+    <h2>Impostazioni</h2>
+    <span class="txtbtn r"></span>
+  </div>
+  <div class="sbody">
+    <div class="sect">
+      <h3>Tipi di lavaggio</h3>
+      <div class="list" id="lav-list"></div>
+      <div class="addrow">
+        <input type="text" id="lav-new" placeholder="Aggiungi tipo di lavaggio">
+        <button id="lav-add">Aggiungi</button>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>Backup</h3>
+      <button class="btn" id="btn-export">Esporta backup</button>
+      <button class="btn ghost" id="btn-import" style="margin-top:10px">Importa backup</button>
+      <input type="file" id="file-import" accept="application/json,.json" hidden>
+      <p class="meta" id="backup-meta"></p>
+    </div>
+    <div class="sect">
+      <h3>Archivio</h3>
+      <p class="meta" id="storage-meta"></p>
+    </div>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ---------- archivio (IndexedDB) ---------- */
+const DB_NAME = "lavanderia", DB_VER = 1;
+let _db = null;
+
+function openDB(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if(!db.objectStoreNames.contains("capi")) db.createObjectStore("capi", {keyPath:"id"});
+      if(!db.objectStoreNames.contains("impostazioni")) db.createObjectStore("impostazioni", {keyPath:"chiave"});
+    };
+    r.onsuccess = () => {
+      _db = r.result;
+      /* se un'altra scheda chiede un aggiornamento, mollo la connessione invece di bloccarla */
+      _db.onversionchange = () => { _db.close(); _db = null; };
+      res(_db);
+    };
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error("Archivio occupato da un'altra scheda"));
+  });
+}
+function tx(store, mode, fn){
+  return openDB().then(db => new Promise((res, rej) => {
+    const t = db.transaction(store, mode);
+    const out = fn(t.objectStore(store));
+    t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);
+  }));
+}
+const store = {
+  all:      () => tx("capi", "readonly",  s => s.getAll()),
+  get:      id => tx("capi", "readonly",  s => s.get(id)),
+  put:      c  => tx("capi", "readwrite", s => s.put(c)),
+  del:      id => tx("capi", "readwrite", s => s.delete(id)),
+  clear:    () => tx("capi", "readwrite", s => s.clear()),
+  setting:  k  => tx("impostazioni", "readonly",  s => s.get(k)).then(r => r ? r.valore : undefined),
+  setSetting: (k, valore) => tx("impostazioni", "readwrite", s => s.put({chiave:k, valore}))
+};
+
+const LAVAGGI_DEFAULT = [
+  "A mano", "30 gradi delicato", "30 gradi normale", "40 gradi delicato",
+  "40 gradi normale", "60 gradi", "Lana e seta", "Solo lavaggio a secco"
+];
+
+/* ---------- stato ---------- */
+const stato = {
+  capi: [], lavaggi: LAVAGGI_DEFAULT.slice(), filtro: "tutti", ricerca: "",
+  editId: null, detailId: null, fotoPending: undefined, editToken: 0, urls: []
+};
+
+/* ---------- utilita' ---------- */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("on"), 2200);
+}
+function nuovoId(){
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+function dataIt(ts){
+  if(!ts) return "mai";
+  const d = new Date(ts);
+  return d.toLocaleDateString("it-IT", {day:"2-digit", month:"long", year:"numeric"});
+}
+function urlDi(blob){
+  const u = URL.createObjectURL(blob);
+  stato.urls.push(u);
+  return u;
+}
+function liberaUrl(){
+  stato.urls.forEach(u => URL.revokeObjectURL(u));
+  stato.urls = [];
+}
+function normalizza(s){
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/* ---------- foto: ridimensiona prima di salvare ---------- */
+async function elaboraFoto(file){
+  const bitmap = await creaBitmap(file);
+  const foto  = await ridimensiona(bitmap, 1280, 0.82);
+  const thumb = await ridimensiona(bitmap, 320, 0.7);
+  if(bitmap.close) bitmap.close();
+  return {foto, thumb};
+}
+function creaBitmap(file){
+  if(window.createImageBitmap){
+    return createImageBitmap(file, {imageOrientation:"from-image"}).catch(() => daImg(file));
+  }
+  return daImg(file);
+}
+function daImg(file){
+  return new Promise((res, rej) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(u); res(img); };
+    img.onerror = e => { URL.revokeObjectURL(u); rej(e); };
+    img.src = u;
+  });
+}
+function ridimensiona(src, maxLato, qualita){
+  const w0 = src.width, h0 = src.height;
+  const scala = Math.min(1, maxLato / Math.max(w0, h0));
+  const w = Math.max(1, Math.round(w0 * scala)), h = Math.max(1, Math.round(h0 * scala));
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  c.getContext("2d").drawImage(src, 0, 0, w, h);
+  return new Promise(res => {
+    if(c.toBlob) c.toBlob(b => res(b || dataUrlABlob(c.toDataURL("image/jpeg", qualita))), "image/jpeg", qualita);
+    else res(dataUrlABlob(c.toDataURL("image/jpeg", qualita)));
+  });
+}
+function dataUrlABlob(dataUrl){
+  const [testa, b64] = dataUrl.split(",");
+  const tipo = /:(.*?);/.exec(testa)[1];
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], {type:tipo});
+}
+function blobABase64(blob){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+}
+
+/* ---------- rendering lista ---------- */
+function capiFiltrati(){
+  const q = normalizza(stato.ricerca);
+  return stato.capi
+    .filter(c => {
+      if(stato.filtro === "perde" && !c.perdeColore) return false;
+      if(stato.filtro !== "tutti" && stato.filtro !== "perde" && c.lavaggio !== stato.filtro) return false;
+      if(q && !(normalizza(c.nome).includes(q) || normalizza(c.note).includes(q))) return false;
+      return true;
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, "it", {sensitivity:"base"}));
+}
+function renderChips(){
+  const usati = [...new Set(stato.capi.map(c => c.lavaggio).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const voci = [{v:"tutti", t:"Tutti"}, {v:"perde", t:"Perde colore", warn:true}]
+    .concat(usati.map(l => ({v:l, t:l})));
+  if(!voci.some(v => v.v === stato.filtro)) stato.filtro = "tutti";
+  $("#chips").innerHTML = voci.map(v =>
+    `<button class="chip${v.warn ? " warn" : ""}${stato.filtro === v.v ? " on" : ""}" data-f="${esc(v.v)}">${esc(v.t)}</button>`
+  ).join("");
+}
+function renderLista(){
+  liberaUrl();
+  renderChips();
+  const lista = capiFiltrati();
+  const grid = $("#grid"), vuoto = $("#empty");
+  grid.innerHTML = lista.map(c => {
+    const img = c.thumb
+      ? `<img class="thumb" src="${urlDi(c.thumb)}" alt="" loading="lazy">`
+      : `<div class="thumb ph"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-2h6.6l1.2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div>`;
+    return `<button class="card" data-id="${esc(c.id)}">
+      ${img}
+      <div class="cbody">
+        <p class="cname">${esc(c.nome)}</p>
+        <div class="tags">
+          ${c.perdeColore ? '<span class="tag red">PERDE COLORE</span>' : ""}
+          ${c.lavaggio ? `<span class="tag">${esc(c.lavaggio)}</span>` : ""}
+        </div>
+      </div>
+    </button>`;
+  }).join("");
+  const nessuno = lista.length === 0;
+  vuoto.hidden = !nessuno;
+  grid.hidden = nessuno;
+  if(nessuno){
+    const filtrando = stato.ricerca || stato.filtro !== "tutti";
+    $("#empty-title").innerHTML = filtrando ? "<b>Nessun capo trovato</b>" : "<b>Nessun capo registrato</b>";
+    $("#empty-sub").textContent = filtrando
+      ? "Prova a cambiare ricerca o filtro."
+      : 'Tocca "Nuovo capo" e scatta la prima foto.';
+  }
+  renderAvvisi();
+}
+
+/* ---------- avvisi (installazione + backup) ---------- */
+const installata = () =>
+  window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+
+async function renderAvvisi(){
+  const box = $("#notices");
+  const avvisi = [];
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if(iOS && !installata() && localStorage.getItem("avviso-installa") !== "chiuso"){
+    avvisi.push(`<div class="notice" data-n="installa">
+      <div><b>Aggiungi l'app alla schermata Home.</b> Tocca il tasto Condividi di Safari e poi "Aggiungi a Home".
+      Serve davvero: Safari cancella i dati dei siti aperti solo dal browser, mentre l'app installata li tiene.</div>
+      <button class="x" data-chiudi="installa" aria-label="Chiudi">&times;</button>
+    </div>`);
+  }
+  const ultimo = await store.setting("ultimoBackup");
+  const giorni = ultimo ? (Date.now() - ultimo) / 864e5 : null;
+  if(stato.capi.length >= 3 && (ultimo == null || giorni > 30)){
+    avvisi.push(`<div class="notice" data-n="backup">
+      <div><b>Fai un backup.</b> ${ultimo == null ? "Non ne hai ancora fatti." : "L'ultimo risale a " + dataIt(ultimo) + "."}
+      <button data-vai="backup">Esporta ora</button></div>
+    </div>`);
+  }
+  box.innerHTML = avvisi.join("");
+}
+
+/* ---------- schermate ---------- */
+function apri(sel){ $(sel).hidden = false; document.body.style.overflow = "hidden"; }
+function chiudi(sel){ $(sel).hidden = true; document.body.style.overflow = ""; }
+
+/* --- scheda nuovo/modifica --- */
+function popolaLavaggi(selezionato){
+  const sel = $("#f-lavaggio");
+  const opts = stato.lavaggi.slice();
+  if(selezionato && !opts.includes(selezionato)) opts.unshift(selezionato);
+  sel.innerHTML = opts.map(l => `<option value="${esc(l)}"${l === selezionato ? " selected" : ""}>${esc(l)}</option>`).join("");
+}
+function lavaggioDefault(){
+  return stato.lavaggi.find(l => normalizza(l) === "40 gradi normale") || stato.lavaggi[0] || "";
+}
+function apriEdit(capo){
+  stato.editId = capo ? capo.id : null;
+  stato.fotoPending = undefined;
+  stato.editToken++;   // le foto in elaborazione della scheda precedente vanno scartate
+  $("#edit-title").textContent = capo ? "Modifica capo" : "Nuovo capo";
+  $("#f-nome").value = capo ? capo.nome : "";
+  $("#f-perde").value = capo && capo.perdeColore ? "si" : "no";
+  $("#f-note").value = capo ? (capo.note || "") : "";
+  popolaLavaggi(capo ? capo.lavaggio : lavaggioDefault());
+  aggiornaHintPerde();
+  mostraAnteprima(capo && capo.thumb ? capo.thumb : null);
+  $("#edit-delete").hidden = !capo;
+  apri("#screen-edit");
+  if(!capo) setTimeout(() => $("#f-nome").focus(), 250);
+}
+function mostraAnteprima(blob){
+  const img = $("#photo-preview"), ph = $("#photo-placeholder"), az = $("#photo-actions");
+  if(blob){
+    img.src = urlDi(blob); img.hidden = false; ph.hidden = true; az.hidden = false;
+  }else{
+    img.removeAttribute("src"); img.hidden = true; ph.hidden = false; az.hidden = true;
+  }
+}
+function aggiornaHintPerde(){
+  const perde = $("#f-perde").value === "si";
+  $("#hint-perde").hidden = !perde;
+  if(perde && !stato.editId && $("#f-lavaggio").value !== "A mano" && stato.lavaggi.includes("A mano")){
+    $("#f-lavaggio").value = "A mano";
+  }
+}
+async function salvaCapo(){
+  const nome = $("#f-nome").value.trim();
+  if(!nome){ toast("Metti il nome del capo"); $("#f-nome").focus(); return; }
+  let esistente = null;
+  try{
+    if(stato.editId) esistente = await store.get(stato.editId);
+  }catch(_){ toast("Archivio non raggiungibile, riprova"); return; }
+  const capo = {
+    id: stato.editId || nuovoId(),
+    nome,
+    perdeColore: $("#f-perde").value === "si",
+    lavaggio: $("#f-lavaggio").value,
+    note: $("#f-note").value.trim(),
+    foto:  esistente ? esistente.foto  : null,
+    thumb: esistente ? esistente.thumb : null,
+    createdAt: esistente ? esistente.createdAt : Date.now(),
+    updatedAt: Date.now()
+  };
+  if(stato.fotoPending === null){ capo.foto = null; capo.thumb = null; }
+  else if(stato.fotoPending){ capo.foto = stato.fotoPending.foto; capo.thumb = stato.fotoPending.thumb; }
+  try{
+    await store.put(capo);
+  }catch(_){ toast("Non sono riuscito a salvare, riprova"); return; }
+  await ricarica();
+  chiudi("#screen-edit");
+  if(stato.detailId === capo.id) mostraDettaglio(capo.id);
+  toast(esistente ? "Scheda aggiornata" : "Capo salvato");
+}
+
+/* --- dettaglio --- */
+async function mostraDettaglio(id){
+  const c = await store.get(id);
+  if(!c){ chiudi("#screen-detail"); return; }
+  stato.detailId = id;
+  const foto = c.foto || c.thumb;
+  $("#detail-body").innerHTML = `
+    ${foto
+      ? `<img class="detail-photo" src="${urlDi(foto)}" alt="">`
+      : `<div class="detail-photo ph"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-2h6.6l1.2 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg></div>`}
+    <h2 class="dname">${esc(c.nome)}</h2>
+    ${c.perdeColore ? `<div class="banner">
+      <svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg>
+      Perde colore: lavare separato o a mano</div>` : ""}
+    <div class="row"><span class="k">Perde colore</span><span class="v">${c.perdeColore ? "Si" : "No"}</span></div>
+    <div class="row"><span class="k">Tipo di lavaggio</span><span class="v">${esc(c.lavaggio || "-")}</span></div>
+    <div class="row"><span class="k">Aggiornata</span><span class="v">${dataIt(c.updatedAt)}</span></div>
+    ${c.note ? `<div class="note">${esc(c.note)}</div>` : ""}
+  `;
+  apri("#screen-detail");
+}
+
+/* --- impostazioni --- */
+function renderLavaggi(){
+  const usati = new Set(stato.capi.map(c => c.lavaggio));
+  $("#lav-list").innerHTML = stato.lavaggi.map(l => `
+    <div class="li"><span>${esc(l)}</span>
+      ${usati.has(l) ? '<span class="meta" style="margin:0">in uso</span>'
+                     : `<button class="del" data-del-lav="${esc(l)}">Elimina</button>`}
+    </div>`).join("") || '<div class="li"><span class="meta" style="margin:0">Nessun tipo di lavaggio.</span></div>';
+}
+async function renderMetaImpostazioni(){
+  const ultimo = await store.setting("ultimoBackup");
+  $("#backup-meta").textContent = "Ultimo backup: " + dataIt(ultimo) +
+    ". Il file contiene tutte le schede e le foto: salvalo su File o iCloud.";
+  let spazio = "";
+  if(navigator.storage && navigator.storage.estimate){
+    try{
+      const e = await navigator.storage.estimate();
+      if(e.usage != null) spazio = " Spazio occupato: " + (e.usage / 1048576).toFixed(1) + " MB.";
+    }catch(_){}
+  }
+  $("#storage-meta").textContent = stato.capi.length + " capi registrati." + spazio;
+}
+async function salvaLavaggi(){
+  await store.setSetting("lavaggi", stato.lavaggi);
+}
+
+/* --- backup --- */
+async function esporta(){
+  toast("Preparo il backup...");
+  const capi = await store.all();
+  const dati = {
+    formato: "lavanderia-v1",
+    esportatoIl: new Date().toISOString(),
+    lavaggi: stato.lavaggi,
+    capi: []
+  };
+  for(const c of capi){
+    dati.capi.push({
+      id: c.id, nome: c.nome, perdeColore: !!c.perdeColore, lavaggio: c.lavaggio,
+      note: c.note || "", createdAt: c.createdAt, updatedAt: c.updatedAt,
+      foto:  c.foto  ? await blobABase64(c.foto)  : null,
+      thumb: c.thumb ? await blobABase64(c.thumb) : null
+    });
+  }
+  const oggi = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify(dati)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "lavanderia-" + oggi + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  await store.setSetting("ultimoBackup", Date.now());
+  await renderMetaImpostazioni();
+  renderAvvisi();
+  toast("Backup pronto: salvalo su File");
+}
+async function importa(file){
+  let dati;
+  try{ dati = JSON.parse(await file.text()); }
+  catch(_){ toast("File non valido"); return; }
+  if(!dati || !Array.isArray(dati.capi)){ toast("File non valido"); return; }
+  const scelta = confirm(
+    "Il backup contiene " + dati.capi.length + " capi.\n\n" +
+    "OK = sostituisci tutto l'archivio attuale\nAnnulla = aggiungi ai capi esistenti"
+  );
+  if(scelta) await store.clear();
+  for(const c of dati.capi){
+    await store.put({
+      id: c.id || nuovoId(),
+      nome: c.nome || "Senza nome",
+      perdeColore: !!c.perdeColore,
+      lavaggio: c.lavaggio || stato.lavaggi[0],
+      note: c.note || "",
+      createdAt: c.createdAt || Date.now(),
+      updatedAt: c.updatedAt || Date.now(),
+      foto:  c.foto  ? dataUrlABlob(c.foto)  : null,
+      thumb: c.thumb ? dataUrlABlob(c.thumb) : null
+    });
+  }
+  if(Array.isArray(dati.lavaggi) && dati.lavaggi.length){
+    stato.lavaggi = [...new Set(stato.lavaggi.concat(dati.lavaggi))];
+    await salvaLavaggi();
+  }
+  await ricarica();
+  renderLavaggi();
+  await renderMetaImpostazioni();
+  toast("Backup importato");
+}
+
+/* ---------- avvio ---------- */
+async function ricarica(){
+  stato.capi = await store.all();
+  renderLista();
+}
+async function init(){
+  const salvati = await store.setting("lavaggi");
+  if(Array.isArray(salvati) && salvati.length) stato.lavaggi = salvati;
+  await ricarica();
+  if(navigator.storage && navigator.storage.persist){
+    try{ await navigator.storage.persist(); }catch(_){}
+  }
+}
+
+/* ---------- eventi ---------- */
+$("#q").addEventListener("input", e => { stato.ricerca = e.target.value; renderLista(); });
+$("#chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if(!b) return;
+  stato.filtro = b.dataset.f; renderLista();
+});
+$("#grid").addEventListener("click", e => {
+  const c = e.target.closest(".card"); if(!c) return;
+  mostraDettaglio(c.dataset.id);
+});
+$("#notices").addEventListener("click", e => {
+  const x = e.target.closest("[data-chiudi]");
+  if(x){ localStorage.setItem("avviso-" + x.dataset.chiudi, "chiuso"); renderAvvisi(); return; }
+  if(e.target.closest("[data-vai=backup]")){ apriImpostazioni(); }
+});
+
+$("#btn-new").addEventListener("click", () => apriEdit(null));
+$("#edit-cancel").addEventListener("click", () => chiudi("#screen-edit"));
+$("#edit-save").addEventListener("click", salvaCapo);
+$("#f-perde").addEventListener("change", aggiornaHintPerde);
+$("#photo-btn").addEventListener("click", () => $("#file-camera").click());
+$("#photo-change").addEventListener("click", e => { e.stopPropagation(); $("#file-camera").click(); });
+$("#photo-remove").addEventListener("click", e => {
+  e.stopPropagation(); stato.fotoPending = null; mostraAnteprima(null);
+});
+$("#file-camera").addEventListener("change", async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if(!file) return;
+  toast("Preparo la foto...");
+  const token = stato.editToken;
+  try{
+    const elaborata = await elaboraFoto(file);
+    if(token !== stato.editToken) return;   // nel frattempo si e' passati a un'altra scheda
+    stato.fotoPending = elaborata;
+    mostraAnteprima(elaborata.thumb);
+    toast("Foto pronta");
+  }catch(err){
+    if(token === stato.editToken) toast("Non sono riuscito a leggere la foto");
+  }
+});
+$("#edit-delete").addEventListener("click", async () => {
+  if(!stato.editId) return;
+  if(!confirm("Eliminare questo capo? L'operazione non si annulla.")) return;
+  await store.del(stato.editId);
+  stato.detailId = null;
+  await ricarica();
+  chiudi("#screen-edit"); chiudi("#screen-detail");
+  toast("Capo eliminato");
+});
+
+$("#detail-back").addEventListener("click", () => { stato.detailId = null; chiudi("#screen-detail"); });
+$("#detail-edit").addEventListener("click", async () => {
+  const c = await store.get(stato.detailId);
+  if(c) apriEdit(c);
+});
+
+function apriImpostazioni(){
+  renderLavaggi(); renderMetaImpostazioni(); apri("#screen-settings");
+}
+$("#btn-settings").addEventListener("click", apriImpostazioni);
+$("#settings-back").addEventListener("click", () => chiudi("#screen-settings"));
+$("#lav-add").addEventListener("click", async () => {
+  const v = $("#lav-new").value.trim();
+  if(!v) return;
+  if(stato.lavaggi.some(l => normalizza(l) === normalizza(v))){ toast("Esiste gia'"); return; }
+  stato.lavaggi.push(v);
+  await salvaLavaggi();
+  $("#lav-new").value = "";
+  renderLavaggi();
+  toast("Aggiunto");
+});
+$("#lav-list").addEventListener("click", async e => {
+  const b = e.target.closest("[data-del-lav]"); if(!b) return;
+  stato.lavaggi = stato.lavaggi.filter(l => l !== b.dataset.delLav);
+  await salvaLavaggi();
+  renderLavaggi();
+});
+$("#btn-export").addEventListener("click", esporta);
+$("#btn-import").addEventListener("click", () => $("#file-import").click());
+$("#file-import").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if(f) importa(f);
+});
+
+/* tasto indietro fisico/gesture: chiude la schermata in cima */
+window.addEventListener("popstate", () => {
+  const aperte = ["#screen-edit", "#screen-detail", "#screen-settings"].filter(s => !$(s).hidden);
+  if(aperte.length){ chiudi(aperte[aperte.length - 1]); history.pushState(null, ""); }
+});
+history.pushState(null, "");
+
+init();
+
+/* service worker: offline + aggiornamento automatico */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+    let ricaricato = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if(ricaricato) return;
+      ricaricato = true;
+      location.reload();
+    });
+  });
+}
+</script>
+</body>
+</html>
