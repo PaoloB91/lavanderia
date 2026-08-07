@@ -172,6 +172,8 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
 .addrow input{flex:1}
 .addrow button{flex:0 0 auto;padding:0 18px;border-radius:12px;background:var(--accent);color:#fff;font-weight:600;min-height:48px}
 .meta{font-size:13px;color:var(--muted);margin-top:10px}
+.meta.ok{color:var(--accent);font-weight:600}
+.meta.ko{color:var(--danger);font-weight:600}
 
 /* toast */
 #toast{
@@ -290,7 +292,24 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
       </div>
     </div>
     <div class="sect">
-      <h3>Backup</h3>
+      <h3>Archivio online</h3>
+      <p class="meta" id="sync-stato" style="margin-top:0"></p>
+      <div id="sync-collegato" hidden>
+        <button class="btn" id="btn-sync">Sincronizza ora</button>
+        <button class="btn ghost" id="btn-ripristina" style="margin-top:10px">Scarica tutto dall'archivio</button>
+        <button class="btn ghost" id="btn-scollega" style="margin-top:10px">Scollega</button>
+      </div>
+      <div id="sync-scollegato" hidden>
+        <p class="meta" style="margin-top:0">Collegando l'archivio, ogni scheda che salvi finisce anche in un
+        magazzino privato su GitHub: cambiando telefono la ritrovi. Serve la chiave di accesso creata sul tuo account.</p>
+        <div class="addrow">
+          <input type="text" id="gh-token" placeholder="Incolla la chiave" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button id="btn-collega">Collega</button>
+        </div>
+      </div>
+    </div>
+    <div class="sect">
+      <h3>Backup su file</h3>
       <button class="btn" id="btn-export">Esporta backup</button>
       <button class="btn ghost" id="btn-import" style="margin-top:10px">Importa backup</button>
       <input type="file" id="file-import" accept="application/json,.json" hidden>
@@ -309,7 +328,7 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
 "use strict";
 
 /* ---------- archivio (IndexedDB) ---------- */
-const DB_NAME = "lavanderia", DB_VER = 1;
+const DB_NAME = "lavanderia", DB_VER = 2;
 let _db = null;
 
 function openDB(){
@@ -320,6 +339,8 @@ function openDB(){
       const db = r.result;
       if(!db.objectStoreNames.contains("capi")) db.createObjectStore("capi", {keyPath:"id"});
       if(!db.objectStoreNames.contains("impostazioni")) db.createObjectStore("impostazioni", {keyPath:"chiave"});
+      /* capi eliminati in attesa di essere tolti anche dall'archivio online */
+      if(!db.objectStoreNames.contains("eliminati")) db.createObjectStore("eliminati", {keyPath:"id"});
     };
     r.onsuccess = () => {
       _db = r.result;
@@ -347,7 +368,10 @@ const store = {
   del:      id => tx("capi", "readwrite", s => s.delete(id)),
   clear:    () => tx("capi", "readwrite", s => s.clear()),
   setting:  k  => tx("impostazioni", "readonly",  s => s.get(k)).then(r => r ? r.valore : undefined),
-  setSetting: (k, valore) => tx("impostazioni", "readwrite", s => s.put({chiave:k, valore}))
+  setSetting: (k, valore) => tx("impostazioni", "readwrite", s => s.put({chiave:k, valore})),
+  eliminati:    () => tx("eliminati", "readonly",  s => s.getAll()),
+  segnaEliminato: v => tx("eliminati", "readwrite", s => s.put(v)),
+  scordaEliminato: id => tx("eliminati", "readwrite", s => s.delete(id))
 };
 
 const LAVAGGI_DEFAULT = [
@@ -392,8 +416,8 @@ function normalizza(s){
 /* ---------- foto: ridimensiona prima di salvare ---------- */
 async function elaboraFoto(file){
   const bitmap = await creaBitmap(file);
-  const foto  = await ridimensiona(bitmap, 1280, 0.82);
-  const thumb = await ridimensiona(bitmap, 320, 0.7);
+  const foto  = await ridimensiona(bitmap, 1600, 0.85);
+  const thumb = await ridimensiona(bitmap, 480, 0.72);
   if(bitmap.close) bitmap.close();
   return {foto, thumb};
 }
@@ -510,9 +534,16 @@ async function renderAvvisi(){
       <button class="x" data-chiudi="installa" aria-label="Chiudi">&times;</button>
     </div>`);
   }
+  if(gh.collegato() && statoSync.stato === "errore"){
+    avvisi.push(`<div class="notice" style="border-left-color:var(--danger)">
+      <div><b>Archivio online:</b> ${esc(statoSync.messaggio)}
+      <button data-vai="backup">Apri le impostazioni</button></div>
+    </div>`);
+  }
   const ultimo = await store.setting("ultimoBackup");
   const giorni = ultimo ? (Date.now() - ultimo) / 864e5 : null;
-  if(stato.capi.length >= 3 && (ultimo == null || giorni > 30)){
+  const soglia = gh.collegato() ? 180 : 30;   // con l'archivio online il file e' la seconda copia
+  if(stato.capi.length >= 3 && (ultimo == null || giorni > soglia)){
     avvisi.push(`<div class="notice" data-n="backup">
       <div><b>Fai un backup.</b> ${ultimo == null ? "Non ne hai ancora fatti." : "L'ultimo risale a " + dataIt(ultimo) + "."}
       <button data-vai="backup">Esporta ora</button></div>
@@ -545,7 +576,7 @@ function apriEdit(capo){
   $("#f-note").value = capo ? (capo.note || "") : "";
   popolaLavaggi(capo ? capo.lavaggio : lavaggioDefault());
   aggiornaHintPerde();
-  mostraAnteprima(capo && capo.thumb ? capo.thumb : null);
+  mostraAnteprima(capo ? (capo.foto || capo.thumb) : null);
   $("#edit-delete").hidden = !capo;
   apri("#screen-edit");
   if(!capo) setTimeout(() => $("#f-nome").focus(), 250);
@@ -592,6 +623,7 @@ async function salvaCapo(){
   chiudi("#screen-edit");
   if(stato.detailId === capo.id) mostraDettaglio(capo.id);
   toast(esistente ? "Scheda aggiornata" : "Capo salvato");
+  sincronizza();
 }
 
 /* --- dettaglio --- */
@@ -643,6 +675,28 @@ async function salvaLavaggi(){
 }
 
 /* --- backup --- */
+/* forma testuale di un capo: la usano sia il backup su file sia l'archivio online */
+async function capoSuTesto(c){
+  return {
+    id: c.id, nome: c.nome, perdeColore: !!c.perdeColore, lavaggio: c.lavaggio,
+    note: c.note || "", createdAt: c.createdAt, updatedAt: c.updatedAt,
+    foto:  c.foto  ? await blobABase64(c.foto)  : null,
+    thumb: c.thumb ? await blobABase64(c.thumb) : null
+  };
+}
+function capoDaTesto(d, extra){
+  return Object.assign({
+    id: d.id || nuovoId(),
+    nome: d.nome || "Senza nome",
+    perdeColore: !!d.perdeColore,
+    lavaggio: d.lavaggio || stato.lavaggi[0],
+    note: d.note || "",
+    createdAt: d.createdAt || Date.now(),
+    updatedAt: d.updatedAt || Date.now(),
+    foto:  d.foto  ? dataUrlABlob(d.foto)  : null,
+    thumb: d.thumb ? dataUrlABlob(d.thumb) : null
+  }, extra || {});
+}
 async function esporta(){
   toast("Preparo il backup...");
   const capi = await store.all();
@@ -652,14 +706,7 @@ async function esporta(){
     lavaggi: stato.lavaggi,
     capi: []
   };
-  for(const c of capi){
-    dati.capi.push({
-      id: c.id, nome: c.nome, perdeColore: !!c.perdeColore, lavaggio: c.lavaggio,
-      note: c.note || "", createdAt: c.createdAt, updatedAt: c.updatedAt,
-      foto:  c.foto  ? await blobABase64(c.foto)  : null,
-      thumb: c.thumb ? await blobABase64(c.thumb) : null
-    });
-  }
+  for(const c of capi) dati.capi.push(await capoSuTesto(c));
   const oggi = new Date().toISOString().slice(0, 10);
   const blob = new Blob([JSON.stringify(dati)], {type:"application/json"});
   const a = document.createElement("a");
@@ -682,19 +729,7 @@ async function importa(file){
     "OK = sostituisci tutto l'archivio attuale\nAnnulla = aggiungi ai capi esistenti"
   );
   if(scelta) await store.clear();
-  for(const c of dati.capi){
-    await store.put({
-      id: c.id || nuovoId(),
-      nome: c.nome || "Senza nome",
-      perdeColore: !!c.perdeColore,
-      lavaggio: c.lavaggio || stato.lavaggi[0],
-      note: c.note || "",
-      createdAt: c.createdAt || Date.now(),
-      updatedAt: c.updatedAt || Date.now(),
-      foto:  c.foto  ? dataUrlABlob(c.foto)  : null,
-      thumb: c.thumb ? dataUrlABlob(c.thumb) : null
-    });
-  }
+  for(const c of dati.capi) await store.put(capoDaTesto(c));
   if(Array.isArray(dati.lavaggi) && dati.lavaggi.length){
     stato.lavaggi = [...new Set(stato.lavaggi.concat(dati.lavaggi))];
     await salvaLavaggi();
@@ -703,6 +738,226 @@ async function importa(file){
   renderLavaggi();
   await renderMetaImpostazioni();
   toast("Backup importato");
+  sincronizza();
+}
+
+/* ---------- archivio online (GitHub) ----------
+   Un file JSON per capo in capi/, dentro un repository privato.
+   Il telefono resta la copia di lavoro: qui va tutto quello che salvi,
+   cosi' cambiando telefono si recupera senza dipendere dai backup a mano. */
+const GH_REPO = "PaoloB91/lavanderia-dati";
+const GH_BASE = "https://api.github.com/repos/" + GH_REPO;
+const CHIAVE_TOKEN = "lavanderia-gh-token";
+
+const gh = {
+  token: () => localStorage.getItem(CHIAVE_TOKEN) || "",
+  collegato(){ return !!this.token(); },
+  async chiama(metodo, percorso, corpo){
+    const r = await fetch(GH_BASE + percorso, {
+      method: metodo,
+      headers: {
+        "Authorization": "Bearer " + gh.token(),
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      body: corpo ? JSON.stringify(corpo) : undefined
+    });
+    if(metodo === "GET" && r.status === 404) return null;
+    if(!r.ok){
+      const e = new Error("GitHub " + r.status);
+      e.stato = r.status;
+      throw e;
+    }
+    return r.status === 204 ? null : r.json();
+  }
+};
+function testoInBase64(s){
+  const byte = new TextEncoder().encode(s);
+  let bin = "";
+  for(let i = 0; i < byte.length; i += 0x8000) bin += String.fromCharCode.apply(null, byte.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function base64InTesto(b64){
+  const bin = atob(String(b64).replace(/\s/g, ""));
+  const arr = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(arr);
+}
+
+let sincronizzando = false;
+let statoSync = {stato: "spento", messaggio: ""};   // spento | ok | attesa | errore
+
+function daSincronizzare(){
+  return stato.capi.filter(c => !c.syncAt || c.syncAt < c.updatedAt).length;
+}
+async function sincronizza(manuale){
+  if(!gh.collegato() || sincronizzando) return;
+  if(!navigator.onLine){
+    statoSync = {stato:"attesa", messaggio:"Senza rete: sincronizzo appena torna la linea."};
+    renderStatoSync(); return;
+  }
+  sincronizzando = true;
+  statoSync = {stato:"attesa", messaggio:"Sincronizzo..."};
+  renderStatoSync();
+  let scritti = 0;
+  try{
+    /* 1. capi eliminati qui, da togliere anche online */
+    for(const e of await store.eliminati()){
+      try{
+        let sha = e.sha;
+        if(!sha){
+          const info = await gh.chiama("GET", "/contents/capi/" + e.id + ".json");
+          sha = info && info.sha;
+        }
+        if(sha) await gh.chiama("DELETE", "/contents/capi/" + e.id + ".json",
+          {message: "Elimino " + (e.nome || e.id), sha});
+        await store.scordaEliminato(e.id);
+      }catch(err){
+        if(err.stato === 404) await store.scordaEliminato(e.id); else throw err;
+      }
+    }
+    /* 2. capi nuovi o modificati */
+    for(const c of await store.all()){
+      if(c.syncAt && c.syncAt >= c.updatedAt) continue;
+      const corpo = {
+        message: "Aggiorno " + c.nome,
+        content: testoInBase64(JSON.stringify(await capoSuTesto(c)))
+      };
+      if(c.sha) corpo.sha = c.sha;
+      let risp;
+      try{
+        risp = await gh.chiama("PUT", "/contents/capi/" + c.id + ".json", corpo);
+      }catch(err){
+        if(err.stato === 409 || err.stato === 422){   // versione online diversa: rileggo e riscrivo
+          const info = await gh.chiama("GET", "/contents/capi/" + c.id + ".json");
+          if(info) corpo.sha = info.sha; else delete corpo.sha;
+          risp = await gh.chiama("PUT", "/contents/capi/" + c.id + ".json", corpo);
+        }else throw err;
+      }
+      c.sha = risp.content.sha;
+      c.syncAt = Date.now();
+      await store.put(c);
+      scritti++;
+    }
+    /* 3. elenco dei tipi di lavaggio */
+    const attuali = JSON.stringify(stato.lavaggi);
+    if(attuali !== localStorage.getItem("lavaggi-sync")){
+      const info = await gh.chiama("GET", "/contents/impostazioni.json");
+      const corpo = {message: "Aggiorno i tipi di lavaggio", content: testoInBase64(attuali)};
+      if(info) corpo.sha = info.sha;
+      await gh.chiama("PUT", "/contents/impostazioni.json", corpo);
+      localStorage.setItem("lavaggi-sync", attuali);
+    }
+    if(scritti) await ricarica();
+    localStorage.setItem("ultima-sync", String(Date.now()));
+    statoSync = {stato:"ok", messaggio:""};
+    if(manuale) toast(scritti ? "Sincronizzati " + scritti + " capi" : "Gia' tutto sincronizzato");
+  }catch(err){
+    if(err.stato === 401 || err.stato === 403){
+      statoSync = {stato:"errore", messaggio:"Chiave non valida o scaduta: ricollega l'archivio."};
+    }else if(err.stato === 404){
+      statoSync = {stato:"errore", messaggio:"Archivio online non trovato."};
+    }else{
+      statoSync = {stato:"attesa", messaggio:"Non sono riuscito a collegarmi, riprovo piu' tardi."};
+    }
+    if(manuale) toast(statoSync.messaggio);
+  }finally{
+    sincronizzando = false;
+    renderStatoSync();
+    renderAvvisi();
+  }
+}
+/* scarica tutto dall'archivio online, sovrascrivendo quello che c'e' qui */
+async function ripristinaDaOnline(silenzioso){
+  if(!gh.collegato()){ toast("Archivio online non collegato"); return 0; }
+  const lista = await gh.chiama("GET", "/contents/capi");
+  if(!Array.isArray(lista) || !lista.length){
+    if(!silenzioso) toast("Nell'archivio online non c'e' niente");
+    return 0;
+  }
+  if(!silenzioso && !confirm("Nell'archivio online ci sono " + lista.length +
+      " capi. Li scarico su questo telefono? Le schede con lo stesso nome vengono sostituite.")) return 0;
+  toast("Scarico " + lista.length + " capi...");
+  let presi = 0;
+  for(const f of lista){
+    if(!f.name.endsWith(".json")) continue;
+    const info = await gh.chiama("GET", "/contents/capi/" + f.name);
+    let testo;
+    if(info && info.content) testo = base64InTesto(info.content);
+    else{
+      const blob = await gh.chiama("GET", "/git/blobs/" + f.sha);   // file oltre 1 MB
+      testo = base64InTesto(blob.content);
+    }
+    await store.put(capoDaTesto(JSON.parse(testo), {sha: f.sha, syncAt: Date.now()}));
+    presi++;
+  }
+  const imp = await gh.chiama("GET", "/contents/impostazioni.json");
+  if(imp && imp.content){
+    try{
+      const lav = JSON.parse(base64InTesto(imp.content));
+      if(Array.isArray(lav) && lav.length){ stato.lavaggi = lav; await salvaLavaggi(); }
+    }catch(_){}
+  }
+  await ricarica();
+  renderLavaggi();
+  toast("Scaricati " + presi + " capi");
+  return presi;
+}
+async function collega(token){
+  const pulito = token.trim();
+  if(!pulito){ toast("Incolla la chiave"); return; }
+  localStorage.setItem(CHIAVE_TOKEN, pulito);
+  try{
+    const info = await gh.chiama("GET", "");
+    if(!info) throw Object.assign(new Error("archivio non trovato"), {stato:404});
+  }catch(err){
+    localStorage.removeItem(CHIAVE_TOKEN);
+    statoSync = {stato:"spento", messaggio:""};
+    renderStatoSync();
+    toast(err.stato === 401 ? "Chiave non valida" :
+          err.stato === 403 ? "La chiave non puo' scrivere su questo archivio" :
+          err.stato === 404 ? "Archivio non trovato" : "Non riesco a collegarmi");
+    return;
+  }
+  toast("Archivio collegato");
+  renderStatoSync();
+  const presi = await ripristinaDaOnline(stato.capi.length > 0);   // telefono nuovo: scarico e basta
+  if(!presi) await sincronizza(true);
+  await renderMetaImpostazioni();
+}
+function scollega(){
+  if(!confirm("Scollego l'archivio online. Le schede restano su questo telefono. Procedo?")) return;
+  localStorage.removeItem(CHIAVE_TOKEN);
+  localStorage.removeItem("lavaggi-sync");
+  statoSync = {stato:"spento", messaggio:""};
+  renderStatoSync();
+  renderMetaImpostazioni();
+  toast("Archivio scollegato");
+}
+function renderStatoSync(){
+  const box = $("#sync-stato");
+  if(!box) return;
+  const pendenti = daSincronizzare();
+  let testo, classe = "";
+  if(!gh.collegato()){
+    testo = "Non collegato: le schede stanno solo su questo telefono.";
+  }else if(statoSync.stato === "errore"){
+    testo = statoSync.messaggio; classe = "ko";
+  }else if(sincronizzando){
+    testo = "Sincronizzo...";
+  }else if(pendenti){
+    testo = pendenti + (pendenti === 1 ? " scheda da mandare" : " schede da mandare") +
+      (statoSync.messaggio ? ". " + statoSync.messaggio : "");
+    classe = statoSync.stato === "attesa" ? "" : "ko";
+  }else{
+    const q = Number(localStorage.getItem("ultima-sync") || 0);
+    testo = "Tutto salvato online" + (q ? " (ultimo invio: " + dataIt(q) + ")" : "") + ".";
+    classe = "ok";
+  }
+  box.textContent = testo;
+  box.className = "meta " + classe;
+  $("#sync-collegato").hidden = !gh.collegato();
+  $("#sync-scollegato").hidden = gh.collegato();
 }
 
 /* ---------- avvio ---------- */
@@ -717,6 +972,12 @@ async function init(){
   if(navigator.storage && navigator.storage.persist){
     try{ await navigator.storage.persist(); }catch(_){}
   }
+  if(gh.collegato()){
+    /* telefono nuovo o archivio svuotato: recupero quello che c'e' online */
+    if(!stato.capi.length){ try{ await ripristinaDaOnline(true); }catch(_){} }
+    sincronizza();
+  }
+  renderStatoSync();
 }
 
 /* ---------- eventi ---------- */
@@ -754,7 +1015,7 @@ $("#file-camera").addEventListener("change", async e => {
     const elaborata = await elaboraFoto(file);
     if(token !== stato.editToken) return;   // nel frattempo si e' passati a un'altra scheda
     stato.fotoPending = elaborata;
-    mostraAnteprima(elaborata.thumb);
+    mostraAnteprima(elaborata.foto);   // l'anteprima usa la foto piena, non la miniatura
     toast("Foto pronta");
   }catch(err){
     if(token === stato.editToken) toast("Non sono riuscito a leggere la foto");
@@ -763,11 +1024,14 @@ $("#file-camera").addEventListener("change", async e => {
 $("#edit-delete").addEventListener("click", async () => {
   if(!stato.editId) return;
   if(!confirm("Eliminare questo capo? L'operazione non si annulla.")) return;
+  const capo = await store.get(stato.editId);
   await store.del(stato.editId);
+  if(gh.collegato() && capo) await store.segnaEliminato({id: capo.id, nome: capo.nome, sha: capo.sha});
   stato.detailId = null;
   await ricarica();
   chiudi("#screen-edit"); chiudi("#screen-detail");
   toast("Capo eliminato");
+  sincronizza();
 });
 
 $("#detail-back").addEventListener("click", () => { stato.detailId = null; chiudi("#screen-detail"); });
@@ -777,7 +1041,7 @@ $("#detail-edit").addEventListener("click", async () => {
 });
 
 function apriImpostazioni(){
-  renderLavaggi(); renderMetaImpostazioni(); apri("#screen-settings");
+  renderLavaggi(); renderMetaImpostazioni(); renderStatoSync(); apri("#screen-settings");
 }
 $("#btn-settings").addEventListener("click", apriImpostazioni);
 $("#settings-back").addEventListener("click", () => chiudi("#screen-settings"));
@@ -797,6 +1061,15 @@ $("#lav-list").addEventListener("click", async e => {
   await salvaLavaggi();
   renderLavaggi();
 });
+$("#btn-collega").addEventListener("click", () => {
+  const t = $("#gh-token").value;
+  $("#gh-token").value = "";
+  collega(t);
+});
+$("#btn-sync").addEventListener("click", () => sincronizza(true));
+$("#btn-ripristina").addEventListener("click", () => ripristinaDaOnline().then(renderMetaImpostazioni));
+$("#btn-scollega").addEventListener("click", scollega);
+window.addEventListener("online", () => sincronizza());
 $("#btn-export").addEventListener("click", esporta);
 $("#btn-import").addEventListener("click", () => $("#file-import").click());
 $("#file-import").addEventListener("change", e => {
