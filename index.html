@@ -547,6 +547,11 @@ function renderLista(){
 const installata = () =>
   window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
+/* la "x" sull'avviso del backup rimanda di due settimane, non spegne il promemoria */
+function rinviato(nome, giorni){
+  const q = Number(localStorage.getItem("rinvio-" + nome) || 0);
+  return q > 0 && (Date.now() - q) / 864e5 < giorni;
+}
 async function renderAvvisi(){
   const box = $("#notices");
   const avvisi = [];
@@ -568,16 +573,21 @@ async function renderAvvisi(){
   const ultimo = await store.setting("ultimoBackup");
   const giorni = ultimo ? (Date.now() - ultimo) / 864e5 : null;
   const soglia = gh.collegato() ? 180 : 30;   // con l'archivio online il file e' la seconda copia
-  if(stato.capi.length >= 3 && (ultimo == null || giorni > soglia)){
+  if(!gh.collegato() && stato.capi.length >= 3 && localStorage.getItem("avviso-archivio") !== "chiuso"){
+    /* una cosa sola da fare, e si sistema per sempre */
+    avvisi.push(`<div class="notice" data-n="archivio">
+      <div><b>Le schede stanno solo su questo telefono.</b> Collega l'archivio online una volta
+      e da li' in poi ogni scheda si salva da sola: cambiando telefono la ritrovi.
+      <div style="margin-top:6px"><button data-vai="impostazioni">Collega l'archivio</button></div></div>
+      <button class="x" data-chiudi="archivio" aria-label="Chiudi">&times;</button>
+    </div>`);
+  }
+  if(gh.collegato() && stato.capi.length >= 3 && (ultimo == null || giorni > soglia) && !rinviato("backup", 14)){
     avvisi.push(`<div class="notice" data-n="backup">
-      <div><b>Metti al sicuro le schede.</b>
-      ${gh.collegato()
-        ? "Ogni tanto conviene anche il file di backup: " + (ultimo == null ? "non ne hai ancora fatti." : "l'ultimo risale a " + dataIt(ultimo) + ".")
-        : "Oggi vivono solo su questo telefono. Salva il file di backup, oppure collega l'archivio online e non ci pensi piu'."}
-      <div style="margin-top:6px;display:flex;gap:16px">
-        <button data-fai="esporta">Salva il file di backup</button>
-        ${gh.collegato() ? "" : '<button data-vai="impostazioni">Collega l\'archivio</button>'}
-      </div></div>
+      <div><b>Fai una copia di scorta.</b> Oltre all'archivio online conviene tenere un file:
+      ${ultimo == null ? "non ne hai ancora fatti." : "l'ultimo risale a " + dataIt(ultimo) + "."}
+      <div style="margin-top:6px"><button data-fai="esporta">Salva il file di backup</button></div></div>
+      <button class="x" data-chiudi="backup" aria-label="Chiudi">&times;</button>
     </div>`);
   }
   box.innerHTML = avvisi.join("");
@@ -1068,7 +1078,12 @@ $("#grid").addEventListener("click", e => {
 });
 $("#notices").addEventListener("click", e => {
   const x = e.target.closest("[data-chiudi]");
-  if(x){ localStorage.setItem("avviso-" + x.dataset.chiudi, "chiuso"); renderAvvisi(); return; }
+  if(x){
+    if(x.dataset.chiudi === "backup") localStorage.setItem("rinvio-backup", String(Date.now()));
+    else localStorage.setItem("avviso-" + x.dataset.chiudi, "chiuso");
+    renderAvvisi();
+    return;
+  }
   if(e.target.closest("[data-fai=esporta]")){ esporta(); return; }
   if(e.target.closest("[data-vai=impostazioni]")){ apriImpostazioni(); }
 });
