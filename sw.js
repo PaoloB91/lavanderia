@@ -1,6 +1,6 @@
 /* Service worker: rende l'app apribile anche senza rete.
    CACHE_VERSION va incrementata a ogni pubblicazione (lo fa deploy.sh). */
-const CACHE_VERSION = "lavanderia-v4";
+const CACHE_VERSION = "lavanderia-v5";
 const FILE = [
   "./",
   "./index.html",

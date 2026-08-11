@@ -61,8 +61,8 @@ header{
 .chips{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
-  flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);
-  background:var(--card);color:var(--muted);font-size:14px;white-space:nowrap
+  flex:0 0 auto;padding:8px 13px;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--muted);font-size:13.5px;white-space:nowrap
 }
 .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 .chip.warn.on{background:var(--danger);border-color:var(--danger)}
@@ -84,6 +84,8 @@ main{padding:12px 16px calc(96px + var(--safe-b))}
 .tags{display:flex;flex-wrap:wrap;gap:5px}
 .tag{font-size:11px;font-weight:600;padding:3px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
 .tag.red{background:var(--danger-soft);color:var(--danger)}
+.tag.tenue{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.chip.tenue{font-style:normal;opacity:.85}
 
 /* stato vuoto */
 .empty{text-align:center;color:var(--muted);padding:56px 20px}
@@ -243,6 +245,11 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
     </label>
 
     <label class="field">
+      <span class="lbl">Categoria</span>
+      <select id="f-categoria"></select>
+    </label>
+
+    <label class="field">
       <span class="lbl">Perde colore</span>
       <select id="f-perde">
         <option value="no">No</option>
@@ -283,6 +290,14 @@ select{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns=
     <span class="txtbtn r"></span>
   </div>
   <div class="sbody">
+    <div class="sect">
+      <h3>Categorie</h3>
+      <div class="list" id="cat-list"></div>
+      <div class="addrow">
+        <input type="text" id="cat-new" placeholder="Aggiungi categoria">
+        <button id="cat-add">Aggiungi</button>
+      </div>
+    </div>
     <div class="sect">
       <h3>Tipi di lavaggio</h3>
       <div class="list" id="lav-list"></div>
@@ -378,10 +393,17 @@ const LAVAGGI_DEFAULT = [
   "A mano", "30 gradi delicato", "30 gradi normale", "40 gradi delicato",
   "40 gradi normale", "60 gradi", "Lana e seta", "Solo lavaggio a secco"
 ];
+const CATEGORIE_DEFAULT = [
+  "Biancheria di casa", "Camicie", "Felpe e maglioni", "Giacche e capispalla",
+  "Intimo e calze", "Magliette e top", "Pantaloni e jeans", "Pigiami",
+  "Sport", "Vestiti e gonne"
+];
+const perNome = (a, b) => a.localeCompare(b, "it", {sensitivity:"base"});
 
 /* ---------- stato ---------- */
 const stato = {
-  capi: [], lavaggi: LAVAGGI_DEFAULT.slice(), filtro: "tutti", ricerca: "",
+  capi: [], lavaggi: LAVAGGI_DEFAULT.slice(), categorie: CATEGORIE_DEFAULT.slice(),
+  filtro: "tutti", ricerca: "",
   editId: null, detailId: null, fotoPending: undefined, editToken: 0, urls: []
 };
 
@@ -466,23 +488,26 @@ function blobABase64(blob){
 /* ---------- rendering lista ---------- */
 function capiFiltrati(){
   const q = normalizza(stato.ricerca);
+  const f = stato.filtro;
   return stato.capi
     .filter(c => {
-      if(stato.filtro === "perde" && !c.perdeColore) return false;
-      if(stato.filtro !== "tutti" && stato.filtro !== "perde" && c.lavaggio !== stato.filtro) return false;
-      if(q && !(normalizza(c.nome).includes(q) || normalizza(c.note).includes(q))) return false;
+      if(f === "perde" && !c.perdeColore) return false;
+      if(f.startsWith("cat:") && c.categoria !== f.slice(4)) return false;
+      if(f.startsWith("lav:") && c.lavaggio !== f.slice(4)) return false;
+      if(q && !(normalizza(c.nome).includes(q) || normalizza(c.note).includes(q) ||
+                normalizza(c.categoria).includes(q) || normalizza(c.lavaggio).includes(q))) return false;
       return true;
     })
-    .sort((a, b) => a.nome.localeCompare(b.nome, "it", {sensitivity:"base"}));
+    .sort((a, b) => perNome(a.nome, b.nome));
 }
 function renderChips(){
-  const usati = [...new Set(stato.capi.map(c => c.lavaggio).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "it"));
+  const usate = v => [...new Set(stato.capi.map(v).filter(Boolean))].sort(perNome);
+  /* solo categorie: i tipi di lavaggio si trovano scrivendoli nella ricerca */
   const voci = [{v:"tutti", t:"Tutti"}, {v:"perde", t:"Perde colore", warn:true}]
-    .concat(usati.map(l => ({v:l, t:l})));
+    .concat(usate(c => c.categoria).map(c => ({v:"cat:" + c, t:c})));
   if(!voci.some(v => v.v === stato.filtro)) stato.filtro = "tutti";
   $("#chips").innerHTML = voci.map(v =>
-    `<button class="chip${v.warn ? " warn" : ""}${stato.filtro === v.v ? " on" : ""}" data-f="${esc(v.v)}">${esc(v.t)}</button>`
+    `<button class="chip${v.warn ? " warn" : ""}${v.tenue ? " tenue" : ""}${stato.filtro === v.v ? " on" : ""}" data-f="${esc(v.v)}">${esc(v.t)}</button>`
   ).join("");
 }
 function renderLista(){
@@ -564,10 +589,17 @@ function chiudi(sel){ $(sel).hidden = true; document.body.style.overflow = ""; }
 
 /* --- scheda nuovo/modifica --- */
 function popolaLavaggi(selezionato){
-  const sel = $("#f-lavaggio");
-  const opts = stato.lavaggi.slice();
+  popolaTendina("#f-lavaggio", stato.lavaggi, selezionato, null);
+}
+function popolaCategorie(selezionata){
+  popolaTendina("#f-categoria", stato.categorie.slice().sort(perNome), selezionata, "Senza categoria");
+}
+function popolaTendina(sel, voci, selezionato, etichettaVuota){
+  const opts = voci.slice();
   if(selezionato && !opts.includes(selezionato)) opts.unshift(selezionato);
-  sel.innerHTML = opts.map(l => `<option value="${esc(l)}"${l === selezionato ? " selected" : ""}>${esc(l)}</option>`).join("");
+  $(sel).innerHTML =
+    (etichettaVuota ? `<option value=""${selezionato ? "" : " selected"}>${esc(etichettaVuota)}</option>` : "") +
+    opts.map(v => `<option value="${esc(v)}"${v === selezionato ? " selected" : ""}>${esc(v)}</option>`).join("");
 }
 function lavaggioDefault(){
   return stato.lavaggi.find(l => normalizza(l) === "40 gradi normale") || stato.lavaggi[0] || "";
@@ -581,6 +613,7 @@ function apriEdit(capo){
   $("#f-perde").value = capo && capo.perdeColore ? "si" : "no";
   $("#f-note").value = capo ? (capo.note || "") : "";
   popolaLavaggi(capo ? capo.lavaggio : lavaggioDefault());
+  popolaCategorie(capo ? capo.categoria : "");
   aggiornaHintPerde();
   mostraAnteprima(capo ? (capo.foto || capo.thumb) : null);
   $("#edit-delete").hidden = !capo;
@@ -612,6 +645,7 @@ async function salvaCapo(){
   const capo = {
     id: stato.editId || nuovoId(),
     nome,
+    categoria: $("#f-categoria").value,
     perdeColore: $("#f-perde").value === "si",
     lavaggio: $("#f-lavaggio").value,
     note: $("#f-note").value.trim(),
@@ -646,6 +680,7 @@ async function mostraDettaglio(id){
     ${c.perdeColore ? `<div class="banner">
       <svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 9v5M12 17h.01"/></svg>
       Perde colore: lavare separato o a mano</div>` : ""}
+    ${c.categoria ? `<div class="row"><span class="k">Categoria</span><span class="v">${esc(c.categoria)}</span></div>` : ""}
     <div class="row"><span class="k">Perde colore</span><span class="v">${c.perdeColore ? "Si" : "No"}</span></div>
     <div class="row"><span class="k">Tipo di lavaggio</span><span class="v">${esc(c.lavaggio || "-")}</span></div>
     <div class="row"><span class="k">Aggiornata</span><span class="v">${dataIt(c.updatedAt)}</span></div>
@@ -655,13 +690,18 @@ async function mostraDettaglio(id){
 }
 
 /* --- impostazioni --- */
-function renderLavaggi(){
-  const usati = new Set(stato.capi.map(c => c.lavaggio));
-  $("#lav-list").innerHTML = stato.lavaggi.map(l => `
-    <div class="li"><span>${esc(l)}</span>
-      ${usati.has(l) ? '<span class="meta" style="margin:0">in uso</span>'
-                     : `<button class="del" data-del-lav="${esc(l)}">Elimina</button>`}
-    </div>`).join("") || '<div class="li"><span class="meta" style="margin:0">Nessun tipo di lavaggio.</span></div>';
+function renderElenchi(){
+  const dipinge = (sel, voci, usate, attributo, vuoto) => {
+    $(sel).innerHTML = voci.map(v => `
+      <div class="li"><span>${esc(v)}</span>
+        ${usate.has(v) ? '<span class="meta" style="margin:0">in uso</span>'
+                       : `<button class="del" ${attributo}="${esc(v)}">Elimina</button>`}
+      </div>`).join("") || `<div class="li"><span class="meta" style="margin:0">${vuoto}</span></div>`;
+  };
+  dipinge("#lav-list", stato.lavaggi, new Set(stato.capi.map(c => c.lavaggio)),
+          "data-del-lav", "Nessun tipo di lavaggio.");
+  dipinge("#cat-list", stato.categorie.slice().sort(perNome), new Set(stato.capi.map(c => c.categoria)),
+          "data-del-cat", "Nessuna categoria.");
 }
 async function renderMetaImpostazioni(){
   const ultimo = await store.setting("ultimoBackup");
@@ -679,12 +719,16 @@ async function renderMetaImpostazioni(){
 async function salvaLavaggi(){
   await store.setSetting("lavaggi", stato.lavaggi);
 }
+async function salvaCategorie(){
+  await store.setSetting("categorie", stato.categorie);
+}
 
 /* --- backup --- */
 /* forma testuale di un capo: la usano sia il backup su file sia l'archivio online */
 async function capoSuTesto(c){
   return {
-    id: c.id, nome: c.nome, perdeColore: !!c.perdeColore, lavaggio: c.lavaggio,
+    id: c.id, nome: c.nome, categoria: c.categoria || "",
+    perdeColore: !!c.perdeColore, lavaggio: c.lavaggio,
     note: c.note || "", createdAt: c.createdAt, updatedAt: c.updatedAt,
     foto:  c.foto  ? await blobABase64(c.foto)  : null,
     thumb: c.thumb ? await blobABase64(c.thumb) : null
@@ -694,6 +738,7 @@ function capoDaTesto(d, extra){
   return Object.assign({
     id: d.id || nuovoId(),
     nome: d.nome || "Senza nome",
+    categoria: d.categoria || "",
     perdeColore: !!d.perdeColore,
     lavaggio: d.lavaggio || stato.lavaggi[0],
     note: d.note || "",
@@ -710,20 +755,37 @@ async function esporta(){
     formato: "lavanderia-v1",
     esportatoIl: new Date().toISOString(),
     lavaggi: stato.lavaggi,
+    categorie: stato.categorie,
     capi: []
   };
   for(const c of capi) dati.capi.push(await capoSuTesto(c));
   const oggi = new Date().toISOString().slice(0, 10);
+  const nome = "lavanderia-" + oggi + ".json";
   const blob = new Blob([JSON.stringify(dati)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "lavanderia-" + oggi + ".json";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  const file = new File([blob], nome, {type:"application/json"});
+
+  /* su iPhone apro il pannello di condivisione: da li' "Salva su File".
+     Altrove (e se iOS rifiuta il file) resta lo scaricamento classico. */
+  let condiviso = false;
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({files:[file], title:"Backup Lavanderia"});
+      condiviso = true;
+    }catch(err){
+      if(err && err.name === "AbortError"){ toast("Backup annullato"); return; }
+    }
+  }
+  if(!condiviso){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
   await store.setSetting("ultimoBackup", Date.now());
   await renderMetaImpostazioni();
   renderAvvisi();
-  toast("Backup pronto: salvalo su File");
+  toast(condiviso ? "Backup salvato" : "Backup pronto: salvalo su File");
 }
 async function importa(file){
   let dati;
@@ -740,8 +802,12 @@ async function importa(file){
     stato.lavaggi = [...new Set(stato.lavaggi.concat(dati.lavaggi))];
     await salvaLavaggi();
   }
+  if(Array.isArray(dati.categorie) && dati.categorie.length){
+    stato.categorie = [...new Set(stato.categorie.concat(dati.categorie))];
+    await salvaCategorie();
+  }
   await ricarica();
-  renderLavaggi();
+  renderElenchi();
   await renderMetaImpostazioni();
   toast("Backup importato");
   sincronizza();
@@ -845,14 +911,14 @@ async function sincronizza(manuale){
       await store.put(c);
       scritti++;
     }
-    /* 3. elenco dei tipi di lavaggio */
-    const attuali = JSON.stringify(stato.lavaggi);
-    if(attuali !== localStorage.getItem("lavaggi-sync")){
+    /* 3. elenchi di categorie e tipi di lavaggio */
+    const attuali = JSON.stringify({lavaggi: stato.lavaggi, categorie: stato.categorie});
+    if(attuali !== localStorage.getItem("imp-sync")){
       const info = await gh.chiama("GET", "/contents/impostazioni.json");
-      const corpo = {message: "Aggiorno i tipi di lavaggio", content: testoInBase64(attuali)};
+      const corpo = {message: "Aggiorno categorie e tipi di lavaggio", content: testoInBase64(attuali)};
       if(info) corpo.sha = info.sha;
       await gh.chiama("PUT", "/contents/impostazioni.json", corpo);
-      localStorage.setItem("lavaggi-sync", attuali);
+      localStorage.setItem("imp-sync", attuali);
     }
     if(scritti) await ricarica();
     localStorage.setItem("ultima-sync", String(Date.now()));
@@ -900,12 +966,14 @@ async function ripristinaDaOnline(silenzioso){
   const imp = await gh.chiama("GET", "/contents/impostazioni.json");
   if(imp && imp.content){
     try{
-      const lav = JSON.parse(base64InTesto(imp.content));
+      const d = JSON.parse(base64InTesto(imp.content));
+      const lav = Array.isArray(d) ? d : d.lavaggi;          // il primo formato era il solo elenco lavaggi
       if(Array.isArray(lav) && lav.length){ stato.lavaggi = lav; await salvaLavaggi(); }
+      if(d && Array.isArray(d.categorie) && d.categorie.length){ stato.categorie = d.categorie; await salvaCategorie(); }
     }catch(_){}
   }
   await ricarica();
-  renderLavaggi();
+  renderElenchi();
   toast("Scaricati " + presi + " capi");
   return presi;
 }
@@ -934,7 +1002,7 @@ async function collega(token){
 function scollega(){
   if(!confirm("Scollego l'archivio online. Le schede restano su questo telefono. Procedo?")) return;
   localStorage.removeItem(CHIAVE_TOKEN);
-  localStorage.removeItem("lavaggi-sync");
+  localStorage.removeItem("imp-sync");
   statoSync = {stato:"spento", messaggio:""};
   renderStatoSync();
   renderMetaImpostazioni();
@@ -972,8 +1040,10 @@ async function ricarica(){
   renderLista();
 }
 async function init(){
-  const salvati = await store.setting("lavaggi");
-  if(Array.isArray(salvati) && salvati.length) stato.lavaggi = salvati;
+  const lav = await store.setting("lavaggi");
+  if(Array.isArray(lav) && lav.length) stato.lavaggi = lav;
+  const cat = await store.setting("categorie");
+  if(Array.isArray(cat)) stato.categorie = cat;
   await ricarica();
   if(navigator.storage && navigator.storage.persist){
     try{ await navigator.storage.persist(); }catch(_){}
@@ -1048,26 +1118,38 @@ $("#detail-edit").addEventListener("click", async () => {
 });
 
 function apriImpostazioni(){
-  renderLavaggi(); renderMetaImpostazioni(); renderStatoSync(); apri("#screen-settings");
+  renderElenchi(); renderMetaImpostazioni(); renderStatoSync(); apri("#screen-settings");
 }
 $("#btn-settings").addEventListener("click", apriImpostazioni);
 $("#settings-back").addEventListener("click", () => chiudi("#screen-settings"));
-$("#lav-add").addEventListener("click", async () => {
-  const v = $("#lav-new").value.trim();
-  if(!v) return;
-  if(stato.lavaggi.some(l => normalizza(l) === normalizza(v))){ toast("Esiste gia'"); return; }
-  stato.lavaggi.push(v);
-  await salvaLavaggi();
-  $("#lav-new").value = "";
-  renderLavaggi();
-  toast("Aggiunto");
-});
-$("#lav-list").addEventListener("click", async e => {
-  const b = e.target.closest("[data-del-lav]"); if(!b) return;
-  stato.lavaggi = stato.lavaggi.filter(l => l !== b.dataset.delLav);
-  await salvaLavaggi();
-  renderLavaggi();
-});
+
+function collegaElenco(idAggiungi, idCampo, idLista, attributo, leggi, scrivi, salva){
+  $(idAggiungi).addEventListener("click", async () => {
+    const v = $(idCampo).value.trim();
+    if(!v) return;
+    if(leggi().some(x => normalizza(x) === normalizza(v))){ toast("Esiste gia'"); return; }
+    scrivi(leggi().concat([v]));
+    await salva();
+    $(idCampo).value = "";
+    renderElenchi();
+    renderLista();
+    sincronizza();
+    toast("Aggiunto");
+  });
+  $(idLista).addEventListener("click", async e => {
+    const b = e.target.closest("[" + attributo + "]"); if(!b) return;
+    const da = b.getAttribute(attributo);
+    scrivi(leggi().filter(x => x !== da));
+    await salva();
+    renderElenchi();
+    renderLista();
+    sincronizza();
+  });
+}
+collegaElenco("#lav-add", "#lav-new", "#lav-list", "data-del-lav",
+  () => stato.lavaggi, v => stato.lavaggi = v, salvaLavaggi);
+collegaElenco("#cat-add", "#cat-new", "#cat-list", "data-del-cat",
+  () => stato.categorie, v => stato.categorie = v, salvaCategorie);
 $("#btn-collega").addEventListener("click", () => {
   const t = $("#gh-token").value;
   $("#gh-token").value = "";
