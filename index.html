@@ -537,7 +537,7 @@ async function renderAvvisi(){
   if(gh.collegato() && statoSync.stato === "errore"){
     avvisi.push(`<div class="notice" style="border-left-color:var(--danger)">
       <div><b>Archivio online:</b> ${esc(statoSync.messaggio)}
-      <button data-vai="backup">Apri le impostazioni</button></div>
+      <button data-vai="impostazioni">Apri le impostazioni</button></div>
     </div>`);
   }
   const ultimo = await store.setting("ultimoBackup");
@@ -545,8 +545,14 @@ async function renderAvvisi(){
   const soglia = gh.collegato() ? 180 : 30;   // con l'archivio online il file e' la seconda copia
   if(stato.capi.length >= 3 && (ultimo == null || giorni > soglia)){
     avvisi.push(`<div class="notice" data-n="backup">
-      <div><b>Fai un backup.</b> ${ultimo == null ? "Non ne hai ancora fatti." : "L'ultimo risale a " + dataIt(ultimo) + "."}
-      <button data-vai="backup">Esporta ora</button></div>
+      <div><b>Metti al sicuro le schede.</b>
+      ${gh.collegato()
+        ? "Ogni tanto conviene anche il file di backup: " + (ultimo == null ? "non ne hai ancora fatti." : "l'ultimo risale a " + dataIt(ultimo) + ".")
+        : "Oggi vivono solo su questo telefono. Salva il file di backup, oppure collega l'archivio online e non ci pensi piu'."}
+      <div style="margin-top:6px;display:flex;gap:16px">
+        <button data-fai="esporta">Salva il file di backup</button>
+        ${gh.collegato() ? "" : '<button data-vai="impostazioni">Collega l\'archivio</button>'}
+      </div></div>
     </div>`);
   }
   box.innerHTML = avvisi.join("");
@@ -993,7 +999,8 @@ $("#grid").addEventListener("click", e => {
 $("#notices").addEventListener("click", e => {
   const x = e.target.closest("[data-chiudi]");
   if(x){ localStorage.setItem("avviso-" + x.dataset.chiudi, "chiuso"); renderAvvisi(); return; }
-  if(e.target.closest("[data-vai=backup]")){ apriImpostazioni(); }
+  if(e.target.closest("[data-fai=esporta]")){ esporta(); return; }
+  if(e.target.closest("[data-vai=impostazioni]")){ apriImpostazioni(); }
 });
 
 $("#btn-new").addEventListener("click", () => apriEdit(null));
